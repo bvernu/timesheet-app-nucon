@@ -1,0 +1,133 @@
+import { useState } from 'react';
+import { supabase } from '../../supabaseClient';
+import Card from '../Common/Card';
+import InputField from '../Common/InputField';
+import Button from '../Common/Button';
+
+const AuthPage = () => {
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState('');
+
+  const handleAuth = async (e) => {
+    e.preventDefault();
+    setError('');
+    setMessage('');
+    setLoading(true);
+
+    try {
+      if (isSignUp) {
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              full_name: fullName,
+            },
+          },
+        });
+        if (error) throw error;
+        setMessage('Check your email for verification link!');
+      } else {
+        const { error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+        if (error) throw error;
+      }
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div>
+      <nav className="navbar navbar-expand-lg navbar-light" style={{ backgroundColor: '#E8E8E8', borderBottom: '3px solid #F18F20' }}>
+        <div className="container-fluid">
+          <span className="navbar-brand mb-0 h1">
+            <img 
+              src="/logo.png" 
+              alt="Company Logo" 
+              height="40"
+              className="me-2"
+            />
+          </span>
+          <span style={{ color: '#080808', fontSize: '1.5rem', fontWeight: '600' }}>
+            Timesheet
+          </span>
+        </div>
+      </nav>
+
+      <div className="min-vh-100 d-flex align-items-center justify-content-center bg-light">
+        <div className="w-100" style={{ maxWidth: '400px' }}>
+          <Card title={isSignUp ? 'Sign Up' : 'Sign In'}>
+            <form onSubmit={handleAuth}>
+              {isSignUp && (
+                <InputField
+                  label="Full Name"
+                  id="fullName"
+                  value={fullName}
+                  onChange={setFullName}
+                  required
+                />
+              )}
+              
+              <InputField
+                label="Email"
+                id="email"
+                type="email"
+                value={email}
+                onChange={setEmail}
+                required
+              />
+              
+              <InputField
+                label="Password"
+                id="password"
+                type="password"
+                value={password}
+                onChange={setPassword}
+                required
+              />
+
+              {error && (
+                <div className="alert alert-danger" role="alert">
+                  {error}
+                </div>
+              )}
+
+              {message && (
+                <div className="alert alert-success" role="alert">
+                  {message}
+                </div>
+              )}
+
+              <div className="d-grid gap-2">
+                <Button type="submit" variant="primary">
+                  {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
+                </Button>
+              </div>
+            </form>
+
+            <div className="text-center mt-3">
+              <button
+                onClick={() => setIsSignUp(!isSignUp)}
+                className="btn btn-link"
+              >
+                {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+              </button>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default AuthPage;
