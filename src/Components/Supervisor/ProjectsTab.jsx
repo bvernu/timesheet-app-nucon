@@ -2,31 +2,13 @@ import { useState } from 'react';
 import { supabase } from '../../supabaseClient';
 import Card from '../Common/Card';
 import Button from '../Common/Button';
-import InputField from '../Common/InputField';
+import ProjectForm from './ProjectForm';
 
-const ProjectsTab = ({ projects, onRefresh }) => {
+const ProjectsTab = ({ projects, onRefresh, employees }) => {
   const [showAddProject, setShowAddProject] = useState(false);
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [error, setError] = useState('');
-
-  const handleAddProject = async (e) => {
-    e.preventDefault();
-    setError('');
-
-    const { error } = await supabase
-      .from('projects')
-      .insert([{ name, description }]);
-    
-    if (error) {
-      setError(error.message);
-    } else {
-      setName('');
-      setDescription('');
-      setShowAddProject(false);
-      onRefresh();
-    }
-  };
+  const [editingProject, setEditingProject] = useState(null);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const handleDeleteProject = async (id) => {
     if (confirm('Are you sure you want to delete this project?')) {
@@ -35,95 +17,190 @@ const ProjectsTab = ({ projects, onRefresh }) => {
     }
   };
 
+  const handleIncrementInvoice = async (project) => {
+    const { error } = await supabase
+      .from('projects')
+      .update({ invoice_count: project.invoice_count + 1 })
+      .eq('id', project.id);
+    
+    if (!error) {
+      onRefresh();
+    }
+  };
+
+  // Filter projects
+  const filteredProjects = projects.filter(project => {
+    const matchesStatus = filterStatus === 'all' || project.status === filterStatus;
+    
+    const matchesSearch = searchQuery === '' || 
+      project.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.company_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.contact_person?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.phone?.includes(searchQuery) ||
+      project.type?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.serial_number?.toString().includes(searchQuery);
+    
+    return matchesStatus && matchesSearch;
+  });
+
+  const statusColors = {
+    'completed': 'success',
+    'cancelled': 'danger',
+    'in progress': 'primary',
+    '50% completed': 'info',
+    'quote sent': 'warning',
+    '60%': 'info',
+    '40%': 'info',
+    'invoiced': 'success'
+  };
+
   return (
     <div>
       <div className="row mb-3">
-        <div className="col">
-          <div className="d-flex justify-content-between align-items-center">
-            <h4>Projects</h4>
-            <Button onClick={() => setShowAddProject(true)} variant="primary">
+        <div className="col-md-4">
+          <h4>Projects</h4>
+        </div>
+        <div className="col-md-8 text-end">
+          <div className="d-inline-flex align-items-center gap-2">
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Search projects..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              style={{ width: '250px' }}
+            />
+            <select
+              className="form-select"
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              style={{ width: '200px' }}
+            >
+              <option value="all">All Status</option>
+              <option value="in progress">In Progress</option>
+              <option value="quote sent">Quote Sent</option>
+              <option value="40%">40%</option>
+              <option value="50% completed">50% Completed</option>
+              <option value="60%">60%</option>
+              <option value="invoiced">Invoiced</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <Button 
+              onClick={() => {
+                setShowAddProject(true);
+                setEditingProject(null);
+              }} 
+              variant="primary"
+            >
               Add Project
             </Button>
           </div>
         </div>
       </div>
 
-      {showAddProject && (
+      {(showAddProject || editingProject) && (
         <div className="row mb-3">
           <div className="col">
-            <Card title="Add Project">
-              <form onSubmit={handleAddProject}>
-                <InputField
-                  label="Project Name"
-                  id="projectName"
-                  value={name}
-                  onChange={setName}
-                  required
-                />
-
-                <div className="mb-3">
-                  <label className="form-label">Description</label>
-                  <textarea
-                    className="form-control"
-                    rows={3}
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                  />
-                </div>
-
-                {error && (
-                  <div className="alert alert-danger" role="alert">
-                    {error}
-                  </div>
-                )}
-
-                <div className="d-flex gap-2">
-                  <Button type="submit" variant="primary">
-                    Save
-                  </Button>
-                  <Button 
-                    type="button" 
-                    variant="secondary" 
-                    onClick={() => setShowAddProject(false)}
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              </form>
-            </Card>
+            <ProjectForm
+              project={editingProject}
+              employees={employees}
+              onClose={() => {
+                setShowAddProject(false);
+                setEditingProject(null);
+              }}
+              onSave={() => {
+                setShowAddProject(false);
+                setEditingProject(null);
+                onRefresh();
+              }}
+            />
           </div>
         </div>
       )}
 
-      <div className="row">
-        {projects.map((project) => (
-          <div key={project.id} className="col-md-4 mb-3">
-            <Card>
-              <div className="d-flex justify-content-between align-items-start mb-2">
-                <h5 className="mb-0">{project.name}</h5>
-                <button
-                  onClick={() => handleDeleteProject(project.id)}
-                  className="btn btn-sm btn-outline-danger"
-                >
-                  Delete
-                </button>
-              </div>
-              <p className="text-muted mb-0">
-                {project.description || 'No description'}
-              </p>
-            </Card>
-          </div>
-        ))}
-        {projects.length === 0 && (
-          <div className="col-12">
-            <Card>
-              <div className="text-center text-muted py-4">
-                No projects yet. Click "Add Project" to create one.
-              </div>
-            </Card>
-          </div>
-        )}
-      </div>
+      <Card>
+        <div className="table-responsive">
+          <table className="table table-hover">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Project Name</th>
+                <th>Type</th>
+                <th>Company</th>
+                <th>Contact</th>
+                <th>Status</th>
+                <th>Invoice #</th>
+                <th>Project Lead</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredProjects.map((project) => {
+                const projectLead = employees.find(e => e.id === project.project_lead_id);
+                
+                return (
+                  <tr key={project.id}>
+                    <td className="fw-bold">{project.serial_number}</td>
+                    <td>{project.name}</td>
+                    <td>
+                      <span className="badge bg-secondary">{project.type}</span>
+                    </td>
+                    <td>{project.company_name}</td>
+                    <td>
+                      {project.contact_person}<br />
+                      <small className="text-muted">{project.email}</small>
+                    </td>
+                    <td>
+                      <span className={`badge bg-${statusColors[project.status] || 'secondary'}`}>
+                        {project.status}
+                      </span>
+                    </td>
+                    <td>
+                      <button
+                        onClick={() => handleIncrementInvoice(project)}
+                        className="btn btn-sm btn-outline-secondary"
+                        title="Increment invoice count"
+                      >
+                        {project.invoice_count}
+                      </button>
+                    </td>
+                    <td>{projectLead?.full_name || '-'}</td>
+                    <td>
+                      <button
+                        onClick={() => setEditingProject(project)}
+                        className="btn btn-sm btn-outline-primary me-2"
+                      >
+                        View/Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteProject(project.id)}
+                        className="btn btn-sm btn-outline-danger"
+                      >
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredProjects.length === 0 && (
+                <tr>
+                  <td colSpan="9" className="text-center text-muted py-4">
+                    No projects found. {searchQuery || filterStatus !== 'all' ? 'Try adjusting your filters.' : 'Click "Add Project" to create one.'}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {filteredProjects.length > 0 && (
+        <div className="mt-3 text-muted">
+          Showing {filteredProjects.length} of {projects.length} projects
+        </div>
+      )}
     </div>
   );
 };
